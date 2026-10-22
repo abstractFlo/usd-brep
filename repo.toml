@@ -421,3 +421,12 @@ social_media = [
 ]
 social_media_set = ""
 
+
+
+########################################################################################################################
+# Python wheel (cadler fork: the public repo has no settings for its wheel tool)
+########################################################################################################################
+
+[repo_py_package]
+staging_dir = "${root}/_build/py_package/staging"
+install_dir = "${root}/_build/py_package/wheels"

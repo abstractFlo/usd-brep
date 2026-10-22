@@ -1,0 +1,34 @@
+# The package index on GitHub Pages: a PEP 503 index linking to the usd-brep wheels of every
+# release (cadler/simple-index.py). Called by wheels.yml after a release; by hand after a release
+# was edited or deleted.
+name: index
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}simple/
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --slurp | python3 cadler/simple-index.py site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

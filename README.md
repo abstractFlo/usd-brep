@@ -1,5 +1,21 @@
 # USD BRep
 
+> **This is cadler's fork** of [NVIDIA-Omniverse/usd-brep](https://github.com/NVIDIA-Omniverse/usd-brep).
+> The `cadler` branch is an upstream tag plus a few commits that cadler (a code-CAD app)
+> needs, and GitHub Actions that build Python wheels from it for Linux (x86_64, aarch64), Windows (x64)
+> and macOS (arm64), which upstream does not publish for macOS.
+>
+> - What differs from upstream: `git log v1.0.1..cadler`, also listed in each release's notes.
+>   Changed files keep NVIDIA's license headers; the changes are under the same Apache-2.0 license.
+> - Wheel version: `cadler/version` (upstream's version plus a local label, e.g. `1.0.1+cadler.1`).
+> - Build scripts: `cadler/build-linux.sh`, `cadler/build-windows.ps1`, `cadler/build-macos.sh`;
+>   workflow: `.github/workflows/wheels.yml`.
+> - Release: raise `cadler/version`, commit, tag `v<version with - for +>` (e.g. `v1.0.1-cadler.1`) and push
+>   the tag. The wheels go into a GitHub release, and the package index at
+>   <https://abstractflo.github.io/usd-brep/simple/> links to them:
+>   `pip install --extra-index-url https://abstractflo.github.io/usd-brep/simple/ "usd-brep==1.0.1+cadler.1"`.
+> - Upstream update: rebase `cadler` onto the new tag, set `cadler/version`, release.
+
 Solid modeling for [OpenUSD](https://openusd.org/). USD BRep creates and edits
 boundary-representation (BRep) solids and reads and writes them in USD as
 `BrepArray` prims.

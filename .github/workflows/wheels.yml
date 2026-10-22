@@ -1,0 +1,207 @@
+# cadler's usd-brep wheels for Linux (x86_64, aarch64), Windows (x64) and macOS (arm64).
+# Every push and pull request builds them (artifacts); a tag v<upstream>-cadler.<n> also puts them
+# into a GitHub release and refreshes the package index on GitHub Pages (index.yml).
+name: wheels
+
+on:
+  push:
+    branches: [cadler]
+    tags: ["v*-cadler.*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wheels-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  linux:
+    name: linux-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04 }
+          - { arch: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    # glibc 2.35, usd-brep's Linux ABI
+    container: ubuntu:22.04
+    timeout-minutes: 180
+    env:
+      PM_PACKAGES_ROOT: /github/home/packman
+    steps:
+      - name: Build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ca-certificates curl git build-essential binutils patchelf python3 zstd > /dev/null
+      - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/cache@v4
+        with:
+          path: /github/home/packman
+          key: packman-linux-${{ matrix.arch }}-${{ hashFiles('deps/*.xml', 'tools/packman/packman*') }}
+      - run: cadler/build-linux.sh dist
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-linux-${{ matrix.arch }}
+          path: _build/*.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-linux-${{ matrix.arch }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      PM_PACKAGES_ROOT: C:\packman
+    steps:
+      - uses: actions/checkout@v4
+      # usd-brep pins vs2019 (MSVC v142); the runner has VS 2022, so add that toolset to it
+      - name: MSVC v142 toolset
+        shell: pwsh
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          # VS 2022 names the v142 toolset by its version; older installers by v142
+          $ids = "Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64", "Microsoft.VisualStudio.Component.VC.v142.x86.x64"
+          $has = { foreach ($id in $ids) { if (& "$installer\vswhere.exe" -products * -requires $id -property installationPath) { return $id } } }
+          if ($found = & $has) { Write-Host "found $found"; exit 0 }
+          $vs = & "$installer\vswhere.exe" -latest -products * -property installationPath
+          Write-Host "adding $($ids[0]) to $vs"
+          # vs_installer.exe returns before the work is done; through cmd /c it is waited for. Run from
+          # its folder: cmd /c drops the outer quotes when the line starts with a quoted path
+          Set-Location $installer
+          $p = Start-Process -Wait -PassThru -WindowStyle Hidden cmd.exe -ArgumentList @(
+            "/c", "vs_installer.exe", "modify", "--installPath", "`"$vs`"",
+            "--add", $ids[0], "--quiet", "--norestart", "--nocache")
+          Write-Host "vs_installer exited with $($p.ExitCode)"
+          # and should it hand the work to its setup process anyway, wait for that too
+          $deadline = (Get-Date).AddMinutes(30)
+          while ((Get-Process setup, vs_installer, vs_installershell -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep 10 }
+          if (-not (& $has)) {
+            Get-ChildItem "$env:TEMP\dd_*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 2 | ForEach-Object { Get-Content $_ -Tail 40 }
+            throw "the MSVC v142 toolset is still missing"
+          }
+      - uses: actions/cache@v4
+        with:
+          path: C:\packman
+          key: packman-windows-${{ hashFiles('deps/*.xml', 'tools/packman/packman*') }}
+      - run: powershell -ExecutionPolicy Bypass -File cadler\build-windows.ps1 -Out dist
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-windows
+          path: _build/*.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-windows-x64
+          path: dist/*.whl
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # OpenUSD, premake and Python, built or fetched by build-macos.sh; the key names the versions
+      # set there (OPENUSD_TAG, PREMAKE_TAG, PY_VERSION). Saved also when usd-brep fails after them.
+      - id: deps
+        uses: actions/cache/restore@v4
+        with:
+          path: _deps
+          key: deps-macos-openusd-v25.11-nopython-premake-v5.0.0-beta2-python-3.12.10
+      - run: cadler/build-macos.sh dist
+      - if: always() && steps.deps.outputs.cache-hit != 'true' && hashFiles('_deps/usd/LICENSE.txt') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: _deps
+          key: ${{ steps.deps.outputs.cache-primary-key }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-macos
+          path: _build/*.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-macos-arm64
+          path: dist/*.whl
+          if-no-files-found: error
+
+  # each wheel installed on a plain runner of its platform, with uv's Python (python-build-standalone,
+  # what cadler bundles): imports, tessellates, returns face_ids
+  test:
+    name: test-${{ matrix.wheel }}
+    needs: [linux, windows, macos]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { wheel: linux-x86_64, runner: ubuntu-24.04 }
+          - { wheel: linux-aarch64, runner: ubuntu-24.04-arm }
+          - { wheel: windows-x64, runner: windows-2022 }
+          - { wheel: macos-arm64, runner: macos-15 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: cadler
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel-${{ matrix.wheel }}
+          path: dist
+      - shell: bash
+        run: |
+          uv venv --python 3.12 --managed-python .venv
+          uv pip install --python .venv dist/*.whl numpy
+          uv run --no-project --python .venv python cadler/smoke.py
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [test]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(cat cadler/version)"
+          [ "$TAG" = "v${version/+/-}" ] || { echo "tag $TAG does not match cadler/version $version"; exit 1; }
+          ls -la dist
+          [ "$(ls dist/*.whl | wc -l)" = 4 ] || { echo "expected 4 wheels"; exit 1; }
+          upstream="v${version%%+*}"
+          {
+            echo "usd-brep $version for cadler: NVIDIA's usd-brep $upstream with these changes:"
+            echo
+            git log --no-merges --format='- %s' "$upstream..$TAG" -- . ':!cadler' ':!.github' ':!.gitignore' ':!README.md' ':!repo.toml'
+            echo
+            echo "Wheels for CPython 3.12: Linux x86_64 and aarch64 (glibc 2.34+), Windows x64, macOS arm64 (12+)."
+            echo "Package index: https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/simple/"
+          } > notes.md
+          cat notes.md
+          gh release create "$TAG" dist/*.whl --title "usd-brep $version" --notes-file notes.md --verify-tag
+
+  index:
+    needs: release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/index.yml
