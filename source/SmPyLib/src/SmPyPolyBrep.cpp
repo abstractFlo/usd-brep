@@ -59,6 +59,7 @@ struct MeshArrays
     std::vector<float> normals;
     std::vector<int32_t> faces;
     std::vector<float> faceNormals;
+    std::vector<int32_t> faceIds;
 };
 
 SmVector3d unit_normal(const SmVector3d& normal, const SmVector3d& fallback)
@@ -85,9 +86,20 @@ SmVector3d vertex_normal(SmPolyVertex* vertex, SmFace* original)
     return average;
 }
 
-MeshArrays extract_mesh_arrays(SmPolyBrep& self, bool faceVaryingNormals)
+MeshArrays extract_mesh_arrays(SmPolyBrep& self, bool faceVaryingNormals, SmBrep* source = nullptr)
 {
     MeshArrays data;
+
+    // A polygon's original face is a label only: compared, never dereferenced.
+    std::unordered_map<const SmFace*, int32_t> sourceIdx;
+    if (source)
+    {
+        SmTArray<SmFace*> sourceFaces;
+        source->GetFaces(sourceFaces);
+        sourceIdx.reserve(sourceFaces.GetSize());
+        for (ULONG i = 0; i < sourceFaces.GetSize(); ++i)
+            sourceIdx[sourceFaces[i]] = static_cast<int32_t>(i);
+    }
 
     SmTArray<SmPolyVertex*> polyVerts;
     SmTArray<SmPolyFace*> polyFaces;
@@ -169,6 +181,12 @@ MeshArrays extract_mesh_arrays(SmPolyBrep& self, bool faceVaryingNormals)
         data.faces.push_back(static_cast<int32_t>(nEdges));
         data.faces.insert(data.faces.end(), faceVerts.begin(), faceVerts.end());
 
+        if (source)
+        {
+            const auto it = sourceIdx.find(pf->GetOriginalFace());
+            data.faceIds.push_back(it == sourceIdx.end() ? -1 : it->second);
+        }
+
         if (faceVaryingNormals)
         {
             for (ULONG j = 0; j < nEdges; ++j)
@@ -229,11 +247,11 @@ py::dict polybrep_to_mesh_list_arrays(SmPolyBrep& self, bool faceVaryingNormals)
     return out;
 }
 
-py::dict polybrep_to_numpy_arrays(SmPolyBrep& self, bool faceVaryingNormals)
+py::dict polybrep_to_numpy_arrays(SmPolyBrep& self, bool faceVaryingNormals, SmBrep* source)
 {
     // NumPy views take shared ownership of the contiguous buffers through the
     // capsule below, so no Python list or follow-up NumPy copy is needed.
-    auto data = std::make_unique<MeshArrays>(extract_mesh_arrays(self, faceVaryingNormals));
+    auto data = std::make_unique<MeshArrays>(extract_mesh_arrays(self, faceVaryingNormals, source));
 
     MeshArrays* owned = data.release();
     py::capsule owner(
@@ -263,6 +281,11 @@ py::dict polybrep_to_numpy_arrays(SmPolyBrep& self, bool faceVaryingNormals)
         { faceNormalRows, static_cast<py::ssize_t>(3) },
         { static_cast<py::ssize_t>(3 * sizeof(float)), static_cast<py::ssize_t>(sizeof(float)) },
         owned->faceNormals.data(), owner);
+    if (source)
+        out["face_ids"] = py::array_t<int32_t>(
+            { static_cast<py::ssize_t>(owned->faceIds.size()) },
+            { static_cast<py::ssize_t>(sizeof(int32_t)) },
+            owned->faceIds.data(), owner);
     return out;
 }
 
@@ -358,18 +381,23 @@ void bind_polybrep(py::module_& m)
             "to_numpy_arrays",
             &polybrep_to_numpy_arrays,
             py::arg("face_varying_normals") = false,
+            py::arg("source") = static_cast<SmBrep*>(nullptr),
             "Return contiguous NumPy arrays for rendering and bulk processing.\n"
             "\n"
             "Args:\n"
             "    face_varying_normals: Return source-face corner normals instead of\n"
             "        averaged vertex normals; defaults to False.\n"
+            "    source: The ``Brep`` this mesh was tessellated from. When given, the\n"
+            "        result also has ``face_ids``: per polygon, the index of its face\n"
+            "        in ``source.faces()``, or -1 where it has none.\n"
             "\n"
             "Returns:\n"
             "    dict[str, numpy.ndarray]: ``points`` and ``normals`` are\n"
             "        ``float32`` arrays with three columns; normal rows correspond\n"
             "        to vertices or polygon corners. ``faces`` is a flat\n"
             "        ``int32`` polygon stream; ``face_normals`` is a ``float32``\n"
-            "        array shaped ``(m, 3)``.\n"
+            "        array shaped ``(m, 3)``; ``face_ids`` (with ``source``) an\n"
+            "        ``int32`` array with one entry per polygon.\n"
             "\n"
             "Notes:\n"
             "    The arrays own binding-managed contiguous buffers and remain\n"
