@@ -100,7 +100,6 @@ function link_usd_common()
         USD_LIB_PREFIX.."kind",
         USD_LIB_PREFIX.."pcp",
         USD_LIB_PREFIX.."plug",
-        USD_LIB_PREFIX.."python",
         USD_LIB_PREFIX.."sdf",
         USD_LIB_PREFIX.."sdr",
         USD_LIB_PREFIX.."tf",
@@ -114,6 +113,19 @@ function link_usd_common()
         USD_LIB_PREFIX.."vt",
         USD_LIB_PREFIX.."work",
     }
+    -- an OpenUSD built without Python (cadler's macOS build) has no usd_python
+    if os.target() ~= "macosx" or usd_has_python() then
+        links { USD_LIB_PREFIX.."python" }
+    end
+end
+
+function usd_has_python()
+    for _, c in ipairs({ "release", "debug" }) do
+        if #os.matchfiles(target_deps.."/usd/"..c.."/lib/*usd_python.*") > 0 then
+            return true
+        end
+    end
+    return false
 end
 
 function use_python()
@@ -126,9 +138,11 @@ function use_python()
         libdirs { target_deps.."/python/libs" }
         externalincludedirs { target_deps.."/python/include" }
     filter { "system:macosx" }
-        links { "python3.12" }
-        libdirs { target_deps.."/python/lib" }
-        linkoptions { "-Wl,-rpath," .. target_deps .. "/python/lib" }
+        -- Python's symbols come from the interpreter that imports the module: a python that has
+        -- libpython built in (python-build-standalone, as uv installs it) would otherwise get a
+        -- second copy of it and crash
+        -- (chained fixups, the default from macOS 12, do not allow undefined symbols)
+        linkoptions { "-Wl,-undefined,dynamic_lookup", "-Wl,-no_fixup_chains" }
         externalincludedirs { target_deps.."/python/include/python3.12" }
     filter {}
 end

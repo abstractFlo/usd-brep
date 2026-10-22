@@ -120,6 +120,8 @@ function macos_warning_suppressions()
         "-Wno-unused-but-set-variable",
         "-Wno-unused-variable",
         "-Wno-parentheses-equality",
+        -- newer clang (21) warns where -Werror does not expect it
+        "-Wno-error",
     }
 end
 
@@ -140,7 +142,8 @@ function macos_common_buildoptions()
 end
 
 function macos_common_linkoptions()
-    return { macos_arch_flags() }
+    -- room in the headers to rewrite library paths when the build is packed into a wheel
+    return { macos_arch_flags(), "-Wl,-headerpad_max_install_names" }
 end
 
 function macos_usd_build_filters()
