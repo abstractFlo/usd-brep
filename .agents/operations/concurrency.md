@@ -7,25 +7,44 @@
 
 **Source:** `SmApiGeneral.h` (`SmApiCreateContext`, `SmApiGetOrCreateContext`), `source/SMLib/inc/SmContext.h`, `source/SMLib/inc/SmConfig.h`, `source/SMLib/inc/SmCacheMgr.h`
 
-## Rules
+## Rules (cadler fork)
 
-- **The concurrency unit is the process.** Run one worker process per concurrent job. Do **not** call `SmApi*` / `_omni_solid` operations concurrently from multiple threads in one process. A shared-memory WASM worker counts as a thread (see [WASM workers](#wasm-workers)).
-  - **Exception:** `SmApiUsdTessellateBrepArray` builds its Breps in a context private to the call and never uses the default context, so it may be called from several threads at once. Do not modify the stage while calls are running.
-  - **Exception:** `SmApiUsdHealFile` heals each BrepArray in its own context the same way, on worker threads of its own (`threads`); it never uses the default context. `SmApiUsdHealBrepArray` may also be called from several threads while the stage is not modified.
-- **Operations run single-threaded** in the shipped build; scale throughput with more worker processes, not threads.
-- **Keep one long-lived default `SmContext` per worker** across the edit loop. In the shipped build, caches belong to objects; keeping the context alive alone does not preserve caches when those objects are replaced.
-- **Create the context once at startup** (`SmApiCreateContext()`), before spawning threads.
+- **Threads may run `SmApi*` operations at the same time**, each on objects of its own. The
+  default `SmContext` (`SmApiGetOrCreateContext()`) is per thread, and so is every global SMLib
+  writes during an operation; `cadler/threads/allowed.txt` lists the writable globals that stay
+  process-wide and why they are safe. Checked in CI by `cadler/threads` (a harness that compares
+  every operation in 1 to 8 threads with a serial run, under ThreadSanitizer, and a check of the
+  libraries' writable globals).
+- **An object belongs to the thread whose context built it.** Another thread may use it, delete
+  it or take it as a boolean tool only while the building thread runs no `SmApi*` call. Copies of an
+  object several threads read (`SmApiBrepCopy`) are taken under a lock of that object. Several
+  threads must not read the same object at once (wrong results were measured).
+- **A thread that ends calls `SmApiDeleteContext()`** after every object it built is deleted or
+  handed on. The next `SmApi*` call in that thread would create a new context.
+- **A running operation cannot be cancelled**, in a thread or in a process: the escape callback
+  (`smos_SetExcapeCallback`) is not asked by any operation cadler uses. A crash in an operation
+  ends the whole process, so a host that runs operations in threads keeps a process it can restart.
+- **From Python, use processes.** `_omni_solid` holds the GIL during every call, so Python threads
+  run SMLib one at a time.
+- **Release builds only.** Debug builds (`SM_DEBUG_CODE`) keep debug counters in globals that
+  threads share.
+- **Operations run single-threaded** in the shipped build: one call runs on one thread; throughput
+  comes from several threads or processes.
+- **Keep one long-lived default `SmContext` per worker thread** across the edit loop. In the
+  shipped build, caches belong to objects; keeping the context alive alone does not preserve caches
+  when those objects are replaced.
+  - `SmApiUsdTessellateBrepArray` and `SmApiUsdHealFile` / `SmApiUsdHealBrepArray` build their Breps
+    in contexts private to the call and may be called from several threads while the stage is not
+    modified.
 
-## Why in-process threading is unsafe
+## What was shared before (NVIDIA's build)
 
-The `SM_API` layer provides one process-global default `SmContext`
-(`SmApiGetOrCreateContext()`). Many entry points use it for allocation and traversal.
-It holds **unlocked mutable shared state**, including traversal mark counters
-(`m_lCurrentMark*`), so concurrent calls sharing it can race and corrupt traversal
-state. Selected operations use an input object's context or a dedicated output
-context, but that does not establish thread safety for the API as a whole. Use
-separate worker processes for concurrent jobs rather than relying on explicit
-contexts to isolate arbitrary `SmApi*` calls.
+NVIDIA's `SM_API` layer has one process-global default `SmContext`. It holds unlocked mutable
+state (traversal mark counters `m_lCurrentMark*`, mark locks, `m_bDoingBoolean`), and NLib keeps
+the state of some routines in globals (spirals, `NL_MTOL`, `NL_ITLIM`, `NL_ERROR`, fitting error
+lists, a recursion guard in the surface intersector). Threads sharing them gave wrong results from
+2 threads and crashes from 4; ThreadSanitizer reports the races. The cadler fork makes all of them
+per thread (`thread_local`).
 
 ## Operations are single-threaded
 
@@ -48,13 +67,13 @@ instead owns a `SmGlobalCache` containing curve, surface, trimmed-surface, and B
 cache queues. That configuration exposes cache-size parameters on the context
 constructor. Destroying the context discards those queues; a long-lived context
 retains them subject to cache invalidation and eviction. This optional shared cache
-also has unlocked mutable state and must not be treated as thread-safe.
+also has unlocked mutable state and must not be treated as thread-safe; it is per context, so
+per thread.
 
 ## Startup
 
-`SmApiGetOrCreateContext()` lazily creates the global context and is **not
-synchronized**, so call `SmApiCreateContext()` once from the main thread at startup
-(`_omni_solid` does this on import).
+`SmApiGetOrCreateContext()` creates the calling thread's context on its first use
+(`_omni_solid` calls `SmApiCreateContext()` on import, for the importing thread).
 
 ## WASM workers
 
