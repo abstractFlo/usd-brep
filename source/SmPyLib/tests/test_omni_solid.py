@@ -6169,6 +6169,27 @@ class TestHeal(unittest.TestCase):
         sm.heal_brep(box)
         self.assertEqual(len(box.faces()), 6)
 
+    def test_squeeze_face(self):
+        # four rounds a micrometre short of meeting leave a face 2 um across; squeezed, they meet
+        # in a vertex and the body stays closed
+        box = sm.create_box((0, 0, 0), 40, 40, 40)
+        top = [e for e in box.edges()
+               if abs(e.bounding_box(tight=True)[0][2] - 40) < 1e-6 and abs(e.bounding_box(tight=True)[1][2] - 40) < 1e-6]
+        body = sm.fillet_edges(box, top, radius=19.999)
+        tiny = [f for f in body.faces() if math.dist(*f.bounding_box(tight=True)) < 3e-3]
+        self.assertEqual((len(body.faces()), len(tiny)), (10, 1))
+        before = body.volume(1e-6)
+        sm.squeeze_face(body, tiny[0], 4e-3)
+        self.assertEqual((len(body.faces()), len(body.edges()), len(body.vertices())), (9, 16, 9))
+        self.assertTrue(body.is_manifold_solid())
+        self.assertAlmostEqual(body.volume(1e-6), before, delta=1e-3)
+
+    def test_squeeze_face_refuses_a_large_face(self):
+        box = sm.create_box((0, 0, 0), 10, 10, 10)
+        with self.assertRaises(RuntimeError):
+            sm.squeeze_face(box, box.faces()[0], 1e-3)
+        self.assertEqual(len(box.faces()), 6)
+
 
 # -----------------------------------------------------------------------
 #  Closest point (all solutions)

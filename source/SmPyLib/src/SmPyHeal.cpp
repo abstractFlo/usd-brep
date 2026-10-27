@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Bridges: SmApiHeal.h (SmApiHealBrep).
+// Bridges: SmApiHeal.h (SmApiHealBrep, SmApiSqueezeFace).
 
 #include "SmPyCommon.h"
 
@@ -41,4 +41,29 @@ void bind_heal(BoundModule& m)
        "    is_manifold_solid: Validation after healing.\n"
        "\n"
        "Wraps: SmApiHealBrep");
+
+    m.def("squeeze_face", [](SmBrep* brep, SmFace* face, double tolerance) {
+        CHECK_STATUS(SmApiSqueezeFace(brep, face, tolerance));
+        return brep;
+    }, py::return_value_policy::reference,
+       py::arg("brep"), py::arg("face"), py::arg("tolerance"),
+       "Mutates: brep; returns the same handle for chaining.\n"
+       "\n"
+       "Squeeze a tiny face away: delete it and glue its vertices and edges\n"
+       "together, so the faces around it meet at a vertex or along an edge.\n"
+       "\n"
+       "Args:\n"
+       "    brep: Brep that owns the face; changed in place.\n"
+       "    face: The face to remove. It must fit in a box whose diagonal is\n"
+       "        at most ``tolerance``.\n"
+       "    tolerance: Largest gap between the face's vertices that is glued.\n"
+       "\n"
+       "Notes:\n"
+       "    For the sliver a fillet leaves where rounds should meet in a\n"
+       "    point (the four top edges of a cube rounded with half its width,\n"
+       "    built a little smaller). The vertex left gets a tolerance that\n"
+       "    covers the corners it replaces. On failure the Brep is restored\n"
+       "    and an error is raised.\n"
+       "\n"
+       "Wraps: SmApiSqueezeFace");
 }

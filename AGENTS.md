@@ -51,9 +51,10 @@ See the [build instructions](BUILDING.md#build-it) for prerequisites and Windows
 - **BRep** — a solid is defined by its boundary surfaces (`SmBrep` → `SmShell` → `SmFace` → `SmEdge` → `SmVertex`); topology tracks adjacency.
 - **Geometry** — the kernel supports analytic, NURBS, and other curve/surface subclasses. NURBS can represent a sphere exactly; booleans and fillets do not require every input to be converted to NURBS.
 - **Tessellation** — converts exact BRep to polygon meshes (`PolyBrep`); controlled by chord-height tolerance, angle tolerance, max edge length, max aspect ratio.
-- **Context** — SM_API provides a process-global default `SmContext`, created lazily by
+- **Context** — SM_API provides a default `SmContext` per thread (cadler fork), created lazily by
   `SmApiGetOrCreateContext()` and initialized automatically by Python. Selected operations instead
-  use an input object's context or a dedicated output context.
+  use an input object's context or a dedicated output context. Rules for threads:
+  [concurrency](.agents/operations/concurrency.md).
 
 ### SM_API Header Map (C++ side)
 

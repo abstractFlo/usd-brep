@@ -44,6 +44,10 @@ jobs:
           path: /github/home/packman
           key: packman-linux-${{ matrix.arch }}-${{ hashFiles('deps/*.xml', 'tools/packman/packman*') }}
       - run: cadler/build-linux.sh dist
+      # SMLib in threads (cadler/threads): no writable global beyond allowed.txt, and every
+      # operation gives the same result in 1 to 8 threads as alone
+      - run: cadler/threads/run.sh globals
+      - run: cadler/threads/run.sh release 1,2,4,8 2
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -133,6 +137,17 @@ jobs:
           path: dist/*.whl
           if-no-files-found: error
 
+  # SMLib, SM_API and the thread harness built from source under ThreadSanitizer: any data race
+  # between threads that each run their own SM_API operations fails the build (cadler/threads)
+  threads:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      # TSan cannot map its shadow memory with the runner kernel's 32 bits of mmap randomness
+      - run: sudo sysctl vm.mmap_rnd_bits=28
+      - run: cadler/threads/run.sh tsan 2,8 1
+
   # each wheel installed on a plain runner of its platform, with uv's Python (python-build-standalone,
   # what cadler bundles): imports, tessellates, returns face_ids
   test:
@@ -164,7 +179,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [test]
+    needs: [test, threads]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
