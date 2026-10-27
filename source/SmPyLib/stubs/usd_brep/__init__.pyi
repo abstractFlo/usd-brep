@@ -653,6 +653,7 @@ def trim_project_parallel(object: Brep | Surface, curve: BSplineCurve, projectio
 # ===================================================================
 
 def heal_brep(brep: Brep) -> Brep: ...
+def squeeze_face(brep: Brep, face: Face, tolerance: float) -> Brep: ...
 
 # ===================================================================
 #  Polygon mesh ops  (sm.poly.*)
