@@ -1,13 +1,15 @@
 # Build cadler's usd-brep wheel for Windows (x64): this checkout, built and packed by NVIDIA's own
 # tooling (prebuild, repo build, repo py_package), then given the version in cadler\version.
 #
-#   powershell -ExecutionPolicy Bypass -File cadler\build-windows.ps1 [-Out <dir>]
+#   powershell -ExecutionPolicy Bypass -File cadler\build-windows.ps1 [-Out <dir>] [-Toolset v143|v142]
 #
 # The wheel goes to dist\ by default; its path is the last line printed.
-# Needs Visual Studio 2019, or 2022 with the "MSVC v142 - VS 2019 C++ x64/x86 build tools"
-# component: usd-brep pins msbuild.vs_version to vs2019. The script checks that before it starts.
-# OpenUSD and Python come from NVIDIA's Packman.
-param([string]$Out = "")
+# -Toolset v143 (the default) builds with Visual Studio 2022's own compiler. -Toolset v142 builds
+# as NVIDIA pins it (vs2019, to match Omniverse Kit's MSVC 14.2x): Visual Studio 2019, or 2022 with
+# the "MSVC v142 - VS 2019 C++ x64/x86 build tools" component. Both give one ABI; DLLs built with
+# v143 need the Visual C++ runtime 14.30 or newer on the machine. The script checks the compiler
+# before it starts. OpenUSD and Python come from NVIDIA's Packman.
+param([string]$Out = "", [ValidateSet("v143", "v142")][string]$Toolset = "v143")
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -18,23 +20,27 @@ $Log = Join-Path $Root "_build\cadler-build.log"
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vswhere)) { throw "Visual Studio is missing: install VS 2022 (or its Build Tools) with 'Desktop development with C++' and the 'MSVC v142 - VS 2019 C++ x64/x86 build tools' component" }
+$vs2022 = & $vswhere -products * -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+if ($Toolset -eq "v143" -and -not $vs2022) {
+    throw "no Visual Studio 2022 C++ build tools found: install VS 2022 (or its Build Tools) with 'Desktop development with C++', or use -Toolset v142"
+}
 $vs2019 = & $vswhere -products * -version "[16.0,17.0)" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 # VS 2022 names the v142 toolset by its version (14.29), older installers by v142
 $v142 = foreach ($id in "Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64", "Microsoft.VisualStudio.Component.VC.v142.x86.x64") {
     & $vswhere -products * -version "[17.0,18.0)" -requires $id -property installationPath
 }
-if (-not ($vs2019 -or $v142)) {
+if ($Toolset -eq "v142" -and -not ($vs2019 -or $v142)) {
     throw "no MSVC v142 toolset found: in the Visual Studio Installer, Modify -> Individual components -> 'MSVC v142 - VS 2019 C++ x64/x86 build tools' (VS 2022), or install VS 2019 with 'Desktop development with C++'"
 }
 
 Write-Host "==> building usd-brep $Version for Windows x64"
-# repo.toml pins vs2019. Without VS 2019, VS 2022 builds with its v142 toolset (repo_build's
-# msvc_version), the same compiler and ABI; repo.toml is changed for this build only.
+# repo.toml pins vs2019. With v143, or v142 without VS 2019, VS 2022 builds with that toolset
+# (repo_build's msvc_version); repo.toml is changed for this build only.
 $RepoToml = Join-Path $Root "repo.toml"
 $RepoTomlText = Get-Content $RepoToml -Raw
-if (-not $vs2019) {
-    Write-Host "    VS 2022 with the MSVC v142 toolset"
-    $text = $RepoTomlText -replace 'msbuild\.vs_version = "vs2019"', "msbuild.vs_version = `"vs2022`"`nmsbuild.msvc_version = `"v142`""
+if ($Toolset -eq "v143" -or -not $vs2019) {
+    Write-Host "    VS 2022 with the MSVC $Toolset toolset"
+    $text = $RepoTomlText -replace 'msbuild\.vs_version = "vs2019"', "msbuild.vs_version = `"vs2022`"`nmsbuild.msvc_version = `"$Toolset`""
     if ($text -eq $RepoTomlText) { throw "repo.toml has no msbuild.vs_version = `"vs2019`" to change" }
     [IO.File]::WriteAllText($RepoToml, $text)
 }
