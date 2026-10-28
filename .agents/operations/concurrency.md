@@ -19,8 +19,10 @@
   it or take it as a boolean tool only while the building thread runs no `SmApi*` call. Copies of an
   object several threads read (`SmApiBrepCopy`) are taken under a lock of that object. Several
   threads must not read the same object at once (wrong results were measured).
-- **A thread that ends calls `SmApiDeleteContext()`** after every object it built is deleted or
-  handed on. The next `SmApi*` call in that thread would create a new context.
+- **A thread that ends calls `SmApiDeleteContext()`** after every object it built is deleted. Every
+  object keeps a pointer to the context that built it (`SmObject::m_cpContext`), so a thread whose
+  objects live on in other threads keeps its context until they are gone. The next `SmApi*` call
+  in that thread would create a new context.
 - **A running operation cannot be cancelled**, in a thread or in a process: the escape callback
   (`smos_SetExcapeCallback`) is not asked by any operation cadler uses. A crash in an operation
   ends the whole process, so a host that runs operations in threads keeps a process it can restart.
