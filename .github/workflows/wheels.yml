@@ -149,7 +149,8 @@ jobs:
       - run: cadler/threads/run.sh tsan 2,8 1
 
   # each wheel installed on a plain runner of its platform, with uv's Python (python-build-standalone,
-  # what cadler bundles): imports, tessellates, returns face_ids
+  # what cadler bundles): imports, tessellates, returns face_ids, and survives the inputs SMLib
+  # crashed on in cadler (cadler/crashes)
   test:
     name: test-${{ matrix.wheel }}
     needs: [linux, windows, macos]
@@ -176,6 +177,7 @@ jobs:
           uv venv --python 3.12 --managed-python .venv
           uv pip install --python .venv dist/*.whl numpy
           uv run --no-project --python .venv python cadler/smoke.py
+          uv run --no-project --python .venv python cadler/crashes/run.py
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
