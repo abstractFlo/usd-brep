@@ -96,6 +96,9 @@ jobs:
           path: C:\packman
           key: packman-windows-${{ hashFiles('deps/*.xml', 'tools/packman/packman*') }}
       - run: powershell -ExecutionPolicy Bypass -File cadler\build-windows.ps1 -Out dist
+      # SMLib in threads (cadler/threads): every operation gives the same result in 1 to 8 threads
+      # as alone, built with MSVC (thread_local is __declspec(thread)-like there, not as on Linux)
+      - run: powershell -ExecutionPolicy Bypass -File cadler\threads\run-windows.ps1
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -121,6 +124,8 @@ jobs:
           path: _deps
           key: deps-macos-openusd-v25.11-nopython-premake-v5.0.0-beta2-python-3.12.10
       - run: cadler/build-macos.sh dist
+      # SMLib in threads (cadler/threads), built with clang against the macOS libraries
+      - run: cadler/threads/run.sh release 1,2,4,8 2
       - if: always() && steps.deps.outputs.cache-hit != 'true' && hashFiles('_deps/usd/LICENSE.txt') != ''
         uses: actions/cache/save@v4
         with:
