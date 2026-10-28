@@ -66,31 +66,7 @@ jobs:
       PM_PACKAGES_ROOT: C:\packman
     steps:
       - uses: actions/checkout@v4
-      # usd-brep pins vs2019 (MSVC v142); the runner has VS 2022, so add that toolset to it
-      - name: MSVC v142 toolset
-        shell: pwsh
-        run: |
-          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
-          # VS 2022 names the v142 toolset by its version; older installers by v142
-          $ids = "Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64", "Microsoft.VisualStudio.Component.VC.v142.x86.x64"
-          $has = { foreach ($id in $ids) { if (& "$installer\vswhere.exe" -products * -requires $id -property installationPath) { return $id } } }
-          if ($found = & $has) { Write-Host "found $found"; exit 0 }
-          $vs = & "$installer\vswhere.exe" -latest -products * -property installationPath
-          Write-Host "adding $($ids[0]) to $vs"
-          # vs_installer.exe returns before the work is done; through cmd /c it is waited for. Run from
-          # its folder: cmd /c drops the outer quotes when the line starts with a quoted path
-          Set-Location $installer
-          $p = Start-Process -Wait -PassThru -WindowStyle Hidden cmd.exe -ArgumentList @(
-            "/c", "vs_installer.exe", "modify", "--installPath", "`"$vs`"",
-            "--add", $ids[0], "--quiet", "--norestart", "--nocache")
-          Write-Host "vs_installer exited with $($p.ExitCode)"
-          # and should it hand the work to its setup process anyway, wait for that too
-          $deadline = (Get-Date).AddMinutes(30)
-          while ((Get-Process setup, vs_installer, vs_installershell -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep 10 }
-          if (-not (& $has)) {
-            Get-ChildItem "$env:TEMP\dd_*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 2 | ForEach-Object { Get-Content $_ -Tail 40 }
-            throw "the MSVC v142 toolset is still missing"
-          }
+      # VS 2022's own MSVC v143 builds it (build-windows.ps1 -Toolset v143): no toolset to add first
       - uses: actions/cache@v4
         with:
           path: C:\packman
