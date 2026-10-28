@@ -593,6 +593,15 @@ void bind_types(py::module_& m)
         .def("vertex_count", [](SmBrep& self) {
             SmTArray<SmVertex*> v; self.GetVertices(v); return v.GetSize();
         }, "Number of vertices in the Brep.")
+        .def("memory_used", [](SmBrep& self) {
+            ULONG allocated = 0;
+            self.GetMemoryUsed(allocated);
+            return static_cast<unsigned long long>(allocated);
+        }, "Pure: returns int; inputs unchanged.\n"
+           "\n"
+           "Bytes the Brep holds: its topology, geometry, attributes and the caches SMLib\n"
+           "keeps on them (SmBrep::GetMemoryUsed, the allocated size). Walks the whole Brep,\n"
+           "so it costs about as much as listing its faces and edges.")
         .def("info", [](SmBrep& self) {
             SmTArray<SmFace*>   f; self.GetFaces(f);
             SmTArray<SmEdge*>   e; self.GetEdges(e);
