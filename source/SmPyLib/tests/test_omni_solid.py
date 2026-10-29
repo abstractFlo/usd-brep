@@ -3710,6 +3710,21 @@ print(box.face_count(), box.is_manifold_solid(), repr(sm.compute_volume(box)))
                                 [sm.FilletXSect.CIRCULAR, sm.FilletXSect.CIRCULAR])
         self.assertGreater(len(box.faces()), 6)
 
+    def test_chamfer_edges_two_distances(self):
+        # the edge between the top (z = 10) and the front (y = 0): the top set back by 2, the front by 5
+        def chamfered(reference_at_top):
+            box = sm.create_box((0, 0, 0), 10, 10, 10)
+            edge = next(e for e in box.edges() if all(abs(p[1]) < 1e-9 and abs(p[2] - 10) < 1e-9 for p in (v.point() for v in e.vertices())))
+            top, front = (next(f for f in edge.faces() if all(abs(v.point()[axis] - at) < 1e-9 for v in f.vertices())) for axis, at in ((2, 10), (1, 0)))
+            sm.chamfer_edges_two_distances(box, [edge], [top if reference_at_top else front], [2.0], [5.0])
+            return box
+        for reference_at_top, corner in ((True, (2, 5)), (False, (5, 2))):
+            box = chamfered(reference_at_top)
+            self.assertAlmostEqual(box.volume(), 1000 - 0.5 * 2 * 5 * 10, places=6)
+            points = [v.point() for v in box.vertices()]
+            self.assertTrue(any(abs(p[1] - corner[0]) < 1e-6 and abs(p[2] - 10) < 1e-6 for p in points))
+            self.assertTrue(any(abs(p[1]) < 1e-6 and abs(p[2] - (10 - corner[1])) < 1e-6 for p in points))
+
     def test_surface_surface_fillet(self):
         srf1 = sm.create_surface_from_corner_points(
             (0, 0, 0), (10, 0, 0), (0, 10, 0), (10, 10, 0))

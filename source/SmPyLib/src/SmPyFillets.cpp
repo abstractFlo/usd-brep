@@ -238,6 +238,46 @@ void bind_fillets(BoundModule& m)
        "\n"
        "Wraps: SmApiFilletEdgesPerEdge");
 
+    m.def("chamfer_edges_two_distances", [](SmBrep* brep, std::vector<SmEdge*>& edges,
+                                            std::vector<SmFace*>& refFaces,
+                                            std::vector<double>& distances1,
+                                            std::vector<double>& distances2) {
+        SmTArray<SmEdge*> earr;
+        SmTArray<SmFace*> farr;
+        SmTArray<double> d1arr, d2arr;
+        for (auto* e : edges) earr.Add(e);
+        for (auto* f : refFaces) farr.Add(f);
+        for (auto d : distances1) d1arr.Add(d);
+        for (auto d : distances2) d2arr.Add(d);
+        CHECK_STATUS(SmApiChamferEdgesTwoDistances(brep, earr, farr, d1arr, d2arr));
+        return brep;
+    }, py::return_value_policy::reference,
+       py::arg("brep"), py::arg("edges"), py::arg("ref_faces"), py::arg("distances1"), py::arg("distances2"),
+       "Mutates: brep; returns the same handle for chaining.\n"
+       "\n"
+       "Chamfer edges, setting each of an edge's two faces back by a distance of\n"
+       "its own (cadler fork).\n"
+       "\n"
+       "Args:\n"
+       "    brep: Brep to chamfer in place.\n"
+       "    edges: Edges to chamfer.\n"
+       "    ref_faces: Per edge, one of its two faces: the one set back by\n"
+       "        ``distances1``. Swapping it for the other face flips the chamfer.\n"
+       "    distances1: Per edge, the setback on its reference face, measured on\n"
+       "        the face across the edge.\n"
+       "    distances2: Per edge, the setback on its other face.\n"
+       "\n"
+       "Notes:\n"
+       "    The setbacks are exact on flat faces along a straight edge; faces that\n"
+       "    bend along the edge are set back by the distances at its middle. A pair\n"
+       "    the edge's angle cannot take (on an acute edge, one distance much larger\n"
+       "    than the other) raises RuntimeError, as do equal-direction faces.\n"
+       "\n"
+       "See Also:\n"
+       "    fillet_edges: ``xsect_type=0`` for a chamfer of one size.\n"
+       "\n"
+       "Wraps: SmApiChamferEdgesTwoDistances");
+
     m.def("surface_surface_fillet", [](SmSurface* srf1, SmSurface* srf2,
                                        double r1, double r2, double tol,
                                        unsigned long xsect, bool mirror, bool complement) {

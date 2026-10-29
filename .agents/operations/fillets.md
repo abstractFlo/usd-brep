@@ -4,7 +4,7 @@
 # Fillet and Chamfer Operations
 
 **Source:** `source/SM_API/inc/SmApiFillets.h`, `source/SM_API/inc/SmApiBrep.h`
-**Python:** `_omni_solid.circular_fillet`, `chamfer_fillet`, `fillet_edges`, `fillet_edges_per_edge`, `variable_radius_fillet`, `remove_fillet`, `surface_surface_fillet`, `fillet_preview`, `set_bevel_corners`
+**Python:** `_omni_solid.circular_fillet`, `chamfer_fillet`, `fillet_edges`, `fillet_edges_per_edge`, `chamfer_edges_two_distances`, `variable_radius_fillet`, `remove_fillet`, `surface_surface_fillet`, `fillet_preview`, `set_bevel_corners`
 
 ## Overview
 
@@ -132,6 +132,7 @@ boundary.
 
 ## Additional Fillet Functions (now in Python)
 
+- **`chamfer_edges_two_distances(brep, edges, ref_faces, distances1, distances2)`** (cadler fork) — a chamfer that sets each edge's reference face (one of its two faces) back by `distances1[i]` and the other face by `distances2[i]`; swapping the reference face flips it. A linear-section fillet whose two faces are offset by radii of their own, worked out from the setbacks and the angle between the faces at the edge's middle: exact on flat faces along a straight edge. A pair the edge's angle cannot take (on an acute edge, one distance much larger than the other) raises `SM_ERR_INVALID_INPUT`. Wraps `SmApiChamferEdgesTwoDistances`.
 - **`fillet_edges_per_edge(brep, edges, radii, xsect_types, *, continuity=1, thumbweight=1.0)`** — per-edge radius values and cross-section types
 - **`surface_surface_fillet(surface1, surface2, *, radius1, radius2, tolerance, xsect_type=1, mirror=False, complement=False)`** — fillet between two surfaces
 - **`fillet_preview(brep, edges, *, radius)`** — preview fillet surfaces without modifying the BRep
