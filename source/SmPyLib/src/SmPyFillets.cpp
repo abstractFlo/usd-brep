@@ -183,8 +183,8 @@ void bind_fillets(BoundModule& m)
        "    brep: Brep to defeature in place.\n"
        "\n"
        "Raises:\n"
-       "    RuntimeError: A fillet could not be removed. Removed fillets stay\n"
-       "        removed.\n"
+       "    RuntimeError: A fillet could not be removed, or the result was not\n"
+       "        sound; ``brep`` is unchanged.\n"
        "\n"
        "Notes:\n"
        "    Acts on the entire Brep; fillets are faces with tangent rail edges.\n"
@@ -196,6 +196,44 @@ void bind_fillets(BoundModule& m)
        "    fillet_edges: Selective filleting.\n"
        "\n"
        "Wraps: SmApiRemoveFillet");
+
+    m.def("remove_fillet_faces", [](SmBrep* brep, std::vector<SmFace*>& faces) {
+        SmTArray<SmFace*> arr;
+        for (auto* f : faces) arr.Add(f);
+        SmTArray<ULONG> removed;
+        CHECK_STATUS(SmApiRemoveFilletFaces(brep, arr, removed));
+        std::vector<unsigned long> indices;
+        for (ULONG i = 0; i < removed.GetSize(); i++) indices.push_back(removed[i]);
+        return indices;
+    }, py::arg("brep"), py::arg("faces"),
+       "Mutates: brep; returns the indices of the faces removed.\n"
+       "\n"
+       "Remove some fillet faces from a Brep; the faces around them are\n"
+       "extended over them.\n"
+       "\n"
+       "Args:\n"
+       "    brep: Brep to change in place.\n"
+       "    faces: Fillet faces of ``brep`` (or corner faces between fillets).\n"
+       "\n"
+       "Returns:\n"
+       "    The indices (in ``brep.faces()`` order before the call) of every\n"
+       "    face removed: ``faces`` and the fillets and corner faces next to\n"
+       "    them that had to go with them.\n"
+       "\n"
+       "Raises:\n"
+       "    RuntimeError: The fillets could not be removed; ``brep`` is\n"
+       "        unchanged. Also when a face is not a fillet.\n"
+       "\n"
+       "Notes:\n"
+       "    A fillet that cannot go on its own (it ends on other fillets or\n"
+       "    on a rounded corner) goes with the whole group of fillets and\n"
+       "    corner faces it belongs to. Works on a copy: ``brep`` changes\n"
+       "    only when the result passes the kernel's checks.\n"
+       "\n"
+       "See Also:\n"
+       "    remove_fillet: Every fillet of the Brep.\n"
+       "\n"
+       "Wraps: SmApiRemoveFilletFaces");
 
     m.def("fillet_edges_per_edge", [](SmBrep* brep, std::vector<SmEdge*>& edges,
                                      std::vector<double>& radii,

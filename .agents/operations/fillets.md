@@ -4,7 +4,7 @@
 # Fillet and Chamfer Operations
 
 **Source:** `source/SM_API/inc/SmApiFillets.h`, `source/SM_API/inc/SmApiBrep.h`
-**Python:** `_omni_solid.circular_fillet`, `chamfer_fillet`, `fillet_edges`, `fillet_edges_per_edge`, `chamfer_edges_two_distances`, `variable_radius_fillet`, `remove_fillet`, `surface_surface_fillet`, `fillet_preview`, `set_bevel_corners`
+**Python:** `_omni_solid.circular_fillet`, `chamfer_fillet`, `fillet_edges`, `fillet_edges_per_edge`, `chamfer_edges_two_distances`, `variable_radius_fillet`, `remove_fillet`, `remove_fillet_faces`, `surface_surface_fillet`, `fillet_preview`, `set_bevel_corners`
 
 ## Overview
 
@@ -136,5 +136,7 @@ boundary.
 - **`fillet_edges_per_edge(brep, edges, radii, xsect_types, *, continuity=1, thumbweight=1.0)`** — per-edge radius values and cross-section types
 - **`surface_surface_fillet(surface1, surface2, *, radius1, radius2, tolerance, xsect_type=1, mirror=False, complement=False)`** — fillet between two surfaces
 - **`fillet_preview(brep, edges, *, radius)`** — preview fillet surfaces without modifying the BRep
-- **`remove_fillet(brep)`** — remove fillets from a BRep (defeaturing)
+- **`remove_fillet(brep)`** — remove fillets from a BRep (defeaturing). Works on a copy: `brep` changes only when every fillet goes and the result passes the kernel's checks (`AssertValid`, still a closed solid); else it raises and `brep` is unchanged.
+- **`remove_fillet_faces(brep, faces)`** (cadler fork) — remove the fillet faces given; the faces around them are extended over them. Returns the indices (in `brep.faces()` order before the call) of every face removed: a fillet that cannot go on its own (it ends on other fillets or on a rounded corner) goes with the whole group of fillets and corner faces it belongs to. A face that is no fillet raises `SM_ERR_INVALID_INPUT`. Works on a copy like `remove_fillet`. Wraps `SmApiRemoveFilletFaces`.
+- Both join faces a union left split on one surface first, and widen the planes beside a single fillet: `DeleteFilletFace` goes wrong where it has to extend a surface past its patch (a STEP import gives every face a patch of its own), and after it the faces beside the fillet get their uv trim curves made again from their edges.
 - **`set_bevel_corners(brep, *, edges, vertices, radius)`** — fillet `edges` with a constant radius in place, beveling the named corner `vertices` instead of rounding them. It performs the fillet itself. Each vertex must be a corner where filleted edges meet; otherwise it raises (`SM_ERR_NULL_POINTER`). Takes `Edge` and `Vertex` handles.

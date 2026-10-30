@@ -1,6 +1,7 @@
 """Check an installed usd-brep wheel: it imports, tessellates a box, and the face of every
 polygon comes back (the face_ids cadler added) and matches the box's six faces; a chamfer sets the
-two faces of an edge back by distances of their own (chamfer_edges_two_distances, cadler's too).
+two faces of an edge back by distances of their own (chamfer_edges_two_distances, cadler's too);
+one of two fillets comes off on its own (remove_fillet_faces, cadler's too).
 
     python cadler/smoke.py
 """
@@ -27,3 +28,13 @@ for reference, (on_top, on_front) in (("top", (2, 5)), ("front", (5, 2))):
     assert any(abs(p[1] - on_top) < 1e-6 and abs(p[2] - 30) < 1e-6 for p in points), (reference, points)
     assert any(abs(p[1]) < 1e-6 and abs(p[2] - (30 - on_front)) < 1e-6 for p in points), (reference, points)
 print("chamfer with two distances: the setbacks as asked, on either face")
+
+# two top edges of a box rounded R2; one of them taken off again, the other stays
+body = ub.create_box((0.0, 0.0, 0.0), 10.0, 20.0, 30.0)
+ub.fillet_edges(body, [e for e in body.edges() if all(abs(v.point()[2] - 30) < 1e-9 for v in e.vertices()) and abs(e.vertices()[0].point()[1] - e.vertices()[1].point()[1]) > 1], radius=2.0)
+rounds = [f for f in body.faces() if not f.surface().is_planar()]
+assert len(rounds) == 2, len(rounds)
+removed = ub.remove_fillet_faces(body, [rounds[0]])
+assert len(removed) == 1 and body.face_count() == 7, (removed, body.face_count())
+assert abs(body.volume(1e-6) - (6000 - (1 - 3.141592653589793 / 4) * 4 * 20)) < 1e-3, body.volume(1e-6)
+print("remove_fillet_faces: one fillet off, the other kept")

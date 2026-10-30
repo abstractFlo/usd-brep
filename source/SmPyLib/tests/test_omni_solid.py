@@ -3703,6 +3703,61 @@ print(box.face_count(), box.is_manifold_solid(), repr(sm.compute_volume(box)))
         self.assertEqual(part.face_count(), sharp.face_count())
         self.assertAlmostEqual(part.volume(relative_accuracy=1e-6), sharp.volume(relative_accuracy=1e-6), delta=1e-3)
 
+    @staticmethod
+    def _step_import(name):
+        # bodies cadler imported from STEP: every face on a patch made just for it, so removing
+        # a fillet has to extend the faces beside it past their surfaces
+        repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        return sm.Brep.read_from_file(os.path.join(repo, "TestFiles", "pt_TestFiles", name), ascii=True)
+
+    def test_remove_fillet_on_imported_faces(self):
+        # 60 x 40 x 6 with two top edges rounded R3; an L whose faces a union left split, its
+        # inner bend rounded R6: the faces beside the fillets meet sharp, the volume says where
+        for name, sharp in (("step_import_box_two_fillets.smb", 60 * 40 * 6),
+                            ("step_import_bracket_bend.smb", 60 * 40 * 6 + 6 * 40 * 44)):
+            with self.subTest(name):
+                part = self._step_import(name)
+                sm.remove_fillet(part)
+                self.assertAlmostEqual(part.volume(relative_accuracy=1e-6), sharp, delta=1e-3)
+                self.assertTrue(part.is_manifold_solid())
+
+    def test_remove_fillet_faces_takes_one_fillet(self):
+        part = self._step_import("step_import_box_two_fillets.smb")
+        rounded = part.volume(relative_accuracy=1e-6)
+        fillets = [index for index, face in enumerate(part.faces()) if not face.surface().is_planar()]
+        self.assertEqual(len(fillets), 2)
+        removed = sm.remove_fillet_faces(part, [part.faces()[fillets[0]]])
+        self.assertEqual(removed, [fillets[0]])
+        self.assertEqual(part.face_count(), 7)
+        # one of the two R3 rounds filled: (1 - pi / 4) * 3 * 3 * 40 more
+        self.assertAlmostEqual(part.volume(relative_accuracy=1e-6), rounded + (1 - math.pi / 4) * 9 * 40, delta=1e-3)
+
+    def test_remove_fillet_faces_takes_the_fillets_a_corner_joins(self):
+        # every edge of a box rounded: a fillet ends on corner faces, so it goes with all of them
+        part = sm.create_box((0, 0, 0), 10, 10, 10)
+        sm.circular_fillet(part, 1.0)
+        fillet = next(face for face in part.faces() if not face.surface().is_planar())
+        removed = sm.remove_fillet_faces(part, [fillet])
+        self.assertGreater(len(removed), 1)
+        self.assertEqual(part.face_count(), 6)
+        self.assertAlmostEqual(part.volume(relative_accuracy=1e-6), 1000.0, delta=1e-3)
+
+    def test_remove_fillet_faces_refuses_a_face_that_is_no_fillet(self):
+        part = self._step_import("step_import_box_two_fillets.smb")
+        flat = next(face for face in part.faces() if face.surface().is_planar())
+        with self.assertRaises(RuntimeError):
+            sm.remove_fillet_faces(part, [flat])
+        self.assertEqual(part.face_count(), 8)
+
+    def test_user_ids_stay_on_the_faces(self):
+        # UserId1 written in the file as 1000 + the face's index there
+        part = self._step_import("step_import_box_face_ids.smb")
+        self.assertEqual(sorted(face.user_ids() for face in part.faces()), [(1000 + index, 0) for index in range(7)])
+        sm.remove_fillet(part)
+        # the fillet's face is gone, the faces it was rounding keep their ids
+        self.assertEqual(len({face.user_ids()[0] for face in part.faces()}), 6)
+        self.assertTrue(all(face.user_ids()[0] >= 1000 for face in part.faces()))
+
     def test_fillet_edges_per_edge(self):
         box = sm.create_box((0, 0, 0), 10, 10, 10)
         edges = box.edges()[:2]

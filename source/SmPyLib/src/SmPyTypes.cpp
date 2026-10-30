@@ -952,6 +952,12 @@ void bind_types(py::module_& m)
            "Wraps: SmApiFaceComputeCentroid")
         .def("brep", &SmFace::GetBrep, py::return_value_policy::reference,
              "Parent Brep that owns this face.")
+        .def("user_ids", [](SmFace& self) {
+            return py::make_tuple(self.GetUserIndex1(), self.GetUserIndex2());
+        }, "The face's two user indices ``(UserId1, UserId2)``, as the Brep text\n"
+           "format reads and writes them (0 when not set). Copies, booleans,\n"
+           "fillets and offsets keep them on the faces they keep or split; new\n"
+           "faces get 0.")
         .def("__repr__", [](SmFace& self) {
             SmTArray<SmEdge*> e; self.GetEdges(e);
             return std::string("<Face edges=") + std::to_string(e.GetSize()) + ">";
