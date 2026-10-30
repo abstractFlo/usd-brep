@@ -38,3 +38,13 @@ removed = ub.remove_fillet_faces(body, [rounds[0]])
 assert len(removed) == 1 and body.face_count() == 7, (removed, body.face_count())
 assert abs(body.volume(1e-6) - (6000 - (1 - 3.141592653589793 / 4) * 4 * 20)) < 1e-3, body.volume(1e-6)
 print("remove_fillet_faces: one fillet off, the other kept")
+
+# a box's top edges rounded G2: the two rounds meeting at each corner touch at the corner vertex,
+# and their intersection reaches it along the bisector, the same at all four corners
+body = ub.create_box((-20.0, -15.0, 0.0), 40.0, 30.0, 20.0)
+ub.fillet_edges(body, [e for e in body.edges() if all(abs(v.point()[2] - 20) < 1e-9 for v in e.vertices())], radius=3.0, xsect_type=2, continuity=2)
+_, report = ub.tessellate(body, chord_height_tolerance=0.008, surface_angle_tolerance_deg=8.0, curve_angle_tolerance_deg=8.0, return_report=True)
+assert report["output_manifold"] and not report["failures"], report
+miters = [e.length() for e in body.edges() if e.length() < 7]
+assert len(miters) == 4 and max(miters) - min(miters) < 1e-5, miters
+print("G2 rounds meeting at a corner: closed tessellation, four equal miters")

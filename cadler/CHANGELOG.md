@@ -4,7 +4,11 @@ What this fork changed in NVIDIA's usd-brep, per version in `cadler/version`, ne
 NVIDIA's own changes are in `CHANGELOG.md`. Written from the git history by
 `cadler/changelog.py`; do not edit it by hand.
 
-## 1.0.1+cadler.6 - 2026-10-30 (not released yet)
+## 1.0.1+cadler.7 - 2026-10-30 (not released yet)
+
+- SMLib straightens the end of a fillet/fillet intersection where the two surfaces touch: G2 rounds meeting at a box corner end their miter at the vertex along the bisector, without a cluster of control points or a zero-angle corner the tessellation could not close; version 1.0.1+cadler.7
+
+## 1.0.1+cadler.6 - 2026-10-30
 
 - cadler/CHANGELOG.md lists what this fork changed in NVIDIA's usd-brep per version in cadler/version, written from the git history by cadler/changelog.py, and every commit carries its own entry
 - SMLib takes fillets off faces that sit on patches of their own (a STEP import) and gets them right or fails: DeleteFilletFace makes the uv trim curves of the faces beside it again after extending them, remove_fillet works on a copy it keeps only when AssertValid passes, joining faces split on one surface and widening the planes beside a single fillet first; remove_fillet_faces takes off the fillets asked for, with their group when they cannot go alone; Face.user_ids(); version 1.0.1+cadler.6
