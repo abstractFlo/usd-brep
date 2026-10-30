@@ -201,6 +201,7 @@ Hard rules:
 - Single source of truth for agent docs is **`AGENTS.md`** plus **`.agents/`**.
 - When adding a new operation guide, follow the existing guide structure and link it from `.agents/operations/INDEX.md`.
 - When a change fixes a bug listed in `KNOWN_ISSUES.md`, remove its entry and add a `CHANGELOG.md` entry in the same change.
+- cadler fork: `cadler/CHANGELOG.md` lists what the fork changed per version in `cadler/version`, written from the git history by `cadler/changelog.py`, never by hand. Every commit carries its own entry: run `python cadler/changelog.py "<the commit's subject>"` (after bumping `cadler/version`, if the commit does) and commit `cadler/CHANGELOG.md` with it. A run without a subject fills in what an earlier commit left out.
 
 ## Repo-Local Skills
 
