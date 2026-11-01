@@ -4,7 +4,11 @@ What this fork changed in NVIDIA's usd-brep, per version in `cadler/version`, ne
 NVIDIA's own changes are in `CHANGELOG.md`. Written from the git history by
 `cadler/changelog.py`; do not edit it by hand.
 
-## 1.0.1+cadler.8 - 2026-11-01 (not released yet)
+## 1.0.1+cadler.9 - 2026-11-01 (not released yet)
+
+- SMLib tessellates a large polygon on a plane (1000 corners and more, a plate's face with its holes joined into one loop) ear by ear as a walk round it finds them instead of searching every corner for the best before each cut, the rest left to that search when a round finds no ear: a 600-hole plate's view mesh 3.0 s -> 2.1 s, the same triangle count, closed; version 1.0.1+cadler.9
+
+## 1.0.1+cadler.8 - 2026-11-01
 
 - Builds with gcc 15 too (Ubuntu 26.04) under -Werror: SmAssemblyInstance keeps SmTopology's virtual GetBrep visible, SmOffsetSurface's cached singularities no longer hide SmSurface::GetSingularities, SmHealProbArray's destructor without a template-id (C++20), BoundModule hidden like the pybind11 types it holds
 - SMLib builds a planar face with many holes in linear time: a loop closing in the face leaves the holes outside the box round the new face where they are instead of classifying each (600 holes: a face 3.2 s -> 0.7 s, the plate's sweep 6.9 s -> 1.7 s); version 1.0.1+cadler.8

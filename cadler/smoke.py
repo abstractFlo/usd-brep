@@ -60,3 +60,10 @@ sheet = ub.create_planar_faces([ub.create_circle((0.0, 0.0, 0.0), 2.0), ub.creat
 areas = sorted(face.area(1e-9) for face in sheet.faces())
 assert len(areas) == 2 and abs(areas[0] - np.pi * 4) < 1e-6 and abs(areas[1] - (400 - np.pi * 36)) < 1e-6, areas
 print("a plate of 100 holes swept exactly, an island in a hole kept in its own face")
+
+# that plate's faces with 100 holes have thousands of corners, cut ear by ear (not the corner search):
+# the tessellation still closes and covers the plate
+poly = ub.tessellate(plate, chord_height_tolerance=0.01, surface_angle_tolerance_deg=10.0, curve_angle_tolerance_deg=10.0)
+area, _ = poly.compute_area_centroid()
+assert poly.is_manifold_solid() and abs(area / plate.area(1e-9) - 1) < 1e-3, (poly.is_manifold_solid(), area, plate.area(1e-9))
+print("its tessellation closed, its area within 0.1 %")
