@@ -4,7 +4,11 @@ What this fork changed in NVIDIA's usd-brep, per version in `cadler/version`, ne
 NVIDIA's own changes are in `CHANGELOG.md`. Written from the git history by
 `cadler/changelog.py`; do not edit it by hand.
 
-## 1.0.1+cadler.7 - 2026-10-30 (not released yet)
+## 1.0.1+cadler.8 - 2026-11-01 (not released yet)
+
+- SMLib builds a planar face with many holes in linear time: a loop closing in the face leaves the holes outside the box round the new face where they are instead of classifying each (600 holes: a face 3.2 s -> 0.7 s, the plate's sweep 6.9 s -> 1.7 s); version 1.0.1+cadler.8
+
+## 1.0.1+cadler.7 - 2026-10-30
 
 - SMLib straightens the end of a fillet/fillet intersection where the two surfaces touch: G2 rounds meeting at a box corner end their miter at the vertex along the bisector, without a cluster of control points or a zero-angle corner the tessellation could not close; version 1.0.1+cadler.7
 

@@ -48,3 +48,15 @@ assert report["output_manifold"] and not report["failures"], report
 miters = [e.length() for e in body.edges() if e.length() < 7]
 assert len(miters) == 4 and max(miters) - min(miters) < 1e-5, miters
 print("G2 rounds meeting at a corner: closed tessellation, four equal miters")
+
+# a plate with 10 x 10 round holes swept at once: each hole closing in the plate's face leaves the
+# holes before it where they are without classifying them (the square of the holes before)
+holes = [ub.create_circle((-27.0 + 6.0 * i, -27.0 + 6.0 * j, 0.0), 2.0) for i in range(10) for j in range(10)]
+plate = ub.linear_sweep(ub.create_rectangle((0.0, 0.0, 0.0), 70.0, 70.0) + holes, (0.0, 0.0, 1.0), 3.0)
+assert plate.is_manifold_solid() and plate.face_count() == 100 + 4 + 2, plate.face_count()
+assert abs(plate.volume(1e-7) / ((4900 - 100 * np.pi * 4) * 3) - 1) < 1e-6, plate.volume(1e-7)
+# an island in a hole, the island's circle first: the hole closing round it still takes it over
+sheet = ub.create_planar_faces([ub.create_circle((0.0, 0.0, 0.0), 2.0), ub.create_circle((0.0, 0.0, 0.0), 6.0)] + ub.create_rectangle((0.0, 0.0, 0.0), 20.0, 20.0))
+areas = sorted(face.area(1e-9) for face in sheet.faces())
+assert len(areas) == 2 and abs(areas[0] - np.pi * 4) < 1e-6 and abs(areas[1] - (400 - np.pi * 36)) < 1e-6, areas
+print("a plate of 100 holes swept exactly, an island in a hole kept in its own face")
