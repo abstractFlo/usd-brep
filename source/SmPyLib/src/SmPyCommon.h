@@ -166,7 +166,13 @@ py::tuple smpy_read_part_from_file(const std::string& filename, bool ascii);
 //  manages its own submodule) take a plain ``py::module_&`` instead, since
 //  classes/enums must live in exactly one parent module.
 // ---------------------------------------------------------------------------
+// pybind11's types have hidden visibility on GCC/Clang, so a struct holding them is hidden too
+// (gcc 15 warns otherwise: -Wattributes)
+#if defined(__GNUC__)
+struct __attribute__((visibility("hidden"))) BoundModule
+#else
 struct BoundModule
+#endif
 {
     py::module_ flat;
     py::module_ sub;

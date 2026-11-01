@@ -6,6 +6,7 @@ NVIDIA's own changes are in `CHANGELOG.md`. Written from the git history by
 
 ## 1.0.1+cadler.8 - 2026-11-01 (not released yet)
 
+- Builds with gcc 15 too (Ubuntu 26.04) under -Werror: SmAssemblyInstance keeps SmTopology's virtual GetBrep visible, SmOffsetSurface's cached singularities no longer hide SmSurface::GetSingularities, SmHealProbArray's destructor without a template-id (C++20), BoundModule hidden like the pybind11 types it holds
 - SMLib builds a planar face with many holes in linear time: a loop closing in the face leaves the holes outside the box round the new face where they are instead of classifying each (600 holes: a face 3.2 s -> 0.7 s, the plate's sweep 6.9 s -> 1.7 s); version 1.0.1+cadler.8
 
 ## 1.0.1+cadler.7 - 2026-10-30
